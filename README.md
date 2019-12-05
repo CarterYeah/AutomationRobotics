@@ -27,7 +27,7 @@ Unitronics PLC (Unilogic software)
 Image recognition technology (Keyence software)
 -----------------------------------------------
   - https://user-images.githubusercontent.com/58557043/70248554-57392300-177b-11ea-98fe-95512757ceea.png
-  - https://user-images.githubusercontent.com/58557043/70248848-d6c6f200-177b-11ea-9ddf-db76829c3139.png
+  - https://user-images.githubusercontent.com/58557043/70249814-3bcf1780-177d-11ea-80e7-245c7f7863fb.png
   - https://user-images.githubusercontent.com/58557043/70249086-2c030380-177c-11ea-803d-084998c1c3f6.png
   - https://user-images.githubusercontent.com/58557043/70249248-6b315480-177c-11ea-85d4-4d680d5874ed.png
   - https://user-images.githubusercontent.com/58557043/70249358-95831200-177c-11ea-8b8a-d2744a81f258.png
