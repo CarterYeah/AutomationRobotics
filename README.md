@@ -6,8 +6,10 @@ You'll find in this repositorie some example of the code used in my 5 years proj
 Epson robots (RC+ software)
 ---------------------------
 
-* Example of communication code : https://github.com/CarterAxel/AutomationRobotics/blob/master/ExampleEpson6axesRobotCommunication
-* Example of plane and box definition : https://github.com/CarterAxel/AutomationRobotics/blob/master/ExampleEpson6axesRobotBoxAndPlaneDefinitio
+* Example of communication code :
+  - https://github.com/CarterAxel/AutomationRobotics/blob/master/ExampleEpson6axesRobotCommunication
+* Example of plane and box definition :
+  - https://github.com/CarterAxel/AutomationRobotics/blob/master/ExampleEpson6axesRobotBoxAndPlaneDefinitio
 * Example of move programming : https://github.com/CarterAxel/AutomationRobotics/blob/master/ExampleEpson6axesRobotMovement
 
 * Software interface : https://user-images.githubusercontent.com/58557043/70246595-463ae280-1778-11ea-8ebc-99046bbfda8b.png
