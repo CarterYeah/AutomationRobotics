@@ -1,0 +1,501 @@
+Function PrisePieceBacT1_Home_TrsfScara1T1(ByVal i As Long)
+
+'Début CodeProgramme = 105
+CodeProgramme = 0
+
+	If Motor = Off Then Motor On
+	Power High
+
+	Integer TempoDépose
+	CompteurEchecTrsfVersScara1 = 0
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'Prise pièce dans plateau bac froid
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+DEBUT:
+	Call Z_SousProg_PrisePieceBacT1(i)
+	If CodeProgramme > 0 Or CompteurPiecesAbsBacFroid = 3 Or CompteurPiecesCollees = 3 Then Exit Function;
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'Transfert 6axes -> Scara 1
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	Speed 80; Accel 80, 80
+	SpeedS 400; AccelS 500, 500
+	Print " __________________________"
+	Print "|Transfert 6axes -> Scara 1|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+	On Venturi_1
+	Go Home_T1 CP
+	Go AmontScara1_T1
+	RAZ_Dépose = False
+
+	Wait Sw(5) = 1, 60 'Attente Scara1 en place
+	If TW Then CodeProgramme = 621; Print "	-> Erreur critique : Le Scara 1 ne s'est pas présenté au 6axes pour le transfert de pièce"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+	Move AmontScara1_T1 +TLZ(30) 'Avance dans le tool 1 du Scara1
+	Wait Sw(2) = 1, 3 'Attente info venturi Scara1
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''''''Cas où le Scara1 n'arrive pas à aspirer la pièce'''''''''''''''''''''''
+	If TW Then
+			Print " -> Erreur : le Scara1 n'arrive pas à aspirer la pièce -> Récupération de la pièce dans le Scara1"
+            Move AmontScara1_T1 ! D0; On Soufflage_1 !; Off Soufflage_1; Off Venturi_1 'Alors on se recule
+            Wait Sw(2) = 1, 3 'Attente info venturi Scara1
+            If TW Then
+RECUP_PIECE:
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					'''''''''''''Capteur optique T1 shunté''''''''''''
+					If InhibOptiqueT1 = True Then 'On ne peut pas se servir du capteur pour savoir si la pièce est toujours présente dans le Scara1
+						Move AmontScara1_T1 +TLZ(30) ! D0; On Venturi_1 !
+						Wait Sw(10) = 1, 5 'Attente info venturi 6axes T1
+						If TW Then
+							Move AmontScara1_T1; Off Venturi_1
+							GoTo PIECE_TOMBEE
+						EndIf
+						GoTo PIECE_RECUPEREE
+					EndIf 'Si on peut utiliser le capteur optique T1
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''Capteur optique utilisé'''''''''''''
+					Move AmontScara1_T1 +TLZ(27); Wait 0.5 'On s'avance avec le T1 du 6axes pour voir s'il y a un insert dans le T1 du Scara1						
+					If Sw(0) = True Then 'S'il y en a une, on retire la pièce du Scara Optoform par la force du 6axes, on va la redéposer					
+							Move AmontScara1_T1 +TLZ(30) ! D0; On Venturi_1 !
+							Wait Sw(10) = 1, 5 'Attente info venturi 6axes T1
+							If TW Then
+								Move AmontScara1_T1; Off Venturi_1; Print "		-> Erreur critique : Impossible de récupérer la pièce restée dans le Scara1 après l'échec de transfert"
+								CodeProgramme = 622; Print "code programme =", CodeProgramme; Wait 5; Exit Function
+							EndIf
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+PIECE_RECUPEREE:
+							Move AmontScara1_T1; Wait 0.3
+							If Sw(10) = 0 Then GoTo RECUP_PIECE;
+							IndexP1_T1 = IndexP1_T1 - 1
+							Go Home_T1
+							
+							If IndexP1_T1 < 50 Then
+								Print "		-> Remise en place de la pièce n°", IndexP1_T1, " dans le 1er plateau"
+								Go AmontPalette1_T1
+								Move Pallet(PAL_PRISE, IndexP1_T1) +Z(30)
+								Move Pallet(PAL_PRISE, IndexP1_T1) +Z(5); On Soufflage_1; Off Venturi_1; Wait 1
+								Move Pallet(PAL_PRISE, IndexP1_T1) +Z(10); Off Soufflage_1; On Venturi_1; Wait 0.5
+								If InhibOptiqueT1 = True Then Wait 1.5
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								''''''''''''''Mouvement pour taper la pièce dans le cas où elle reste coincée''''''''''''''''''
+								TempoDépose = 3
+								Do While (Sw(10) = 1 And InhibOptiqueT1 = True) Or (Sw(0) = 1 And InhibOptiqueT1 = False)
+									SpeedS 1100; AccelS 800, 800
+									Move Pallet(PAL_PRISE, IndexP1_T1) +Z(5); On Soufflage_1; Off Venturi_1
+									Move Here +Y(1.5); Move Here -Y(3); Move Here +Y(1.5); Move Here +X(1.5); Move Here -X(3); Move Here +X(1.5); Move Here +Z(13); Off Soufflage_1; On Venturi_1; Move Here +Z(12)
+									If TempoDépose > 0 Then TempoDépose = TempoDépose - 1;
+									If TempoDépose = 0 Then CodeProgramme = 623; Print "			-> Erreur critique : 6axes bloqué pendant la remise en place de la pièce"; Print "code programme =", CodeProgramme; Exit Function;
+									If InhibOptiqueT1 = True Then Wait 3;
+								Loop
+								Off Venturi_1
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''								
+							Else
+								Print "		-> Remise en place de la pièce n°", IndexP1_T1, " dans le 2ème plateau"
+								IndexP2_T1 = IndexP1_T1 - 49
+								Go AmontPalette2_T1
+								Move Pallet(PAL_PRISE2, IndexP2_T1) +Z(30)
+								Move Pallet(PAL_PRISE2, IndexP2_T1) +Z(5); On Soufflage_1; Off Venturi_1; Wait 1
+								Move Pallet(PAL_PRISE2, IndexP2_T1) +Z(10); Off Soufflage_1; On Venturi_1; Wait 0.5
+								If InhibOptiqueT1 = True Then Wait 1.5;
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								''''''''''''''Mouvement pour taper la pièce dans le cas où elle reste coincée''''''''''''''''''
+								TempoDépose = 3
+								Do While (Sw(10) = 1 And InhibOptiqueT1 = True) Or (Sw(0) = 1 And InhibOptiqueT1 = False)
+									SpeedS 1100; AccelS 800, 800
+									Move Pallet(PAL_PRISE2, IndexP2_T1) +Z(5); On Soufflage_1; Off Venturi_1
+									Move Here +Y(1.5); Move Here -Y(3); Move Here +Y(1.5); Move Here +X(1.5); Move Here -X(3); Move Here +X(1.5); Move Here +Z(13); Off Soufflage_1; On Venturi_1; Move Here +Z(12)
+									If TempoDépose > 0 Then TempoDépose = TempoDépose - 1;
+									If TempoDépose = 0 Then CodeProgramme = 623; Print "			-> Erreur critique : 6axes bloqué pendant la remise en place de la pièce"; Print "code programme =", CodeProgramme; Exit Function;
+									If InhibOptiqueT1 = True Then Wait 3;
+								Loop
+								Off Venturi_1
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''								
+							EndIf
+							
+							SpeedS 400; AccelS 500, 500
+							If NuméroPièce1 > NuméroPièce2 And NuméroPièce1 > NuméroPièce3 And NuméroPièce1 > NuméroPièce4 And NuméroPièce1 > NuméroPièce5 Then NuméroPièce1 = 0; GoTo SUITE3
+							If NuméroPièce2 > NuméroPièce1 And NuméroPièce2 > NuméroPièce3 And NuméroPièce2 > NuméroPièce4 And NuméroPièce2 > NuméroPièce5 Then NuméroPièce2 = 0; GoTo SUITE3
+							If NuméroPièce3 > NuméroPièce1 And NuméroPièce3 > NuméroPièce2 And NuméroPièce3 > NuméroPièce4 And NuméroPièce3 > NuméroPièce5 Then NuméroPièce3 = 0; GoTo SUITE3
+							If NuméroPièce4 > NuméroPièce1 And NuméroPièce4 > NuméroPièce2 And NuméroPièce4 > NuméroPièce3 And NuméroPièce4 > NuméroPièce5 Then NuméroPièce4 = 0; GoTo SUITE3
+							If NuméroPièce5 > NuméroPièce1 And NuméroPièce5 > NuméroPièce2 And NuméroPièce5 > NuméroPièce3 And NuméroPièce5 > NuméroPièce4 Then NuméroPièce5 = 0
+SUITE3:
+							Off Soufflage_1
+							IndexP1_T1 = IndexP1_T1 + 1
+							CompteurEchecTrsfVersScara1 = CompteurEchecTrsfVersScara1 + 1
+							CodeProgramme = 361; Print "code programme =", CodeProgramme
+							Wait 1.5; On AvertissementAPI; Wait 0.5; Off AvertissementAPI; CodeProgramme = 0; Print "code programme =", CodeProgramme
+							If CompteurEchecTrsfVersScara1 = 3 Or IndexP1_T1 > NumPieceMax Then
+								If IndexP1_T1 <= 50 Then Go AmontPalette1_T1 CP; Else Go AmontPalette2_T1; 'On se place au dessus du plateau avec lequel le robot travaillait
+								Go Home_T1
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								'''''''''''''''''''''''Echec du transfert avec le Scara1 3 fois de suite'''''''''''''''''''''''
+								If CompteurEchecTrsfVersScara1 = 3 Then CodeProgramme = 624; Print "	-> Erreur critique : Problème de transfert 3 fois de suite avec le Scara1"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+								'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							EndIf
+							i = (IndexP1_T1 * 1000) + NumPieceMax
+							GoTo DEBUT
+					Else 'S'il n'y a pas de pièce détecté dans le tool du Scara1, le 6axes va chercher une nouvelle pièce dans le plateau				
+PIECE_TOMBEE:
+							Print "		-> pièce tombée au sol pendant le transfert"
+							Move AmontScara1_T1
+							Go Home_T1
+							CompteurEchecTrsfVersScara1 = CompteurEchecTrsfVersScara1 + 1
+							CodeProgramme = 362; Print "code programme =", CodeProgramme
+							On Soufflage_1; Wait 3; Off Soufflage_1; On AvertissementAPI; Wait 0.5; Off AvertissementAPI; CodeProgramme = 0; Print "code programme =", CodeProgramme
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							'''''''''''''''''''''''''''''''Echec du transfert 3 fois de suite''''''''''''''''''''''''''''''
+							If CompteurEchecTrsfVersScara1 = 3 Then CodeProgramme = 624; Print "	-> Erreur critique : Problème de transfert 3 fois de suite avec le Scara1"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							
+							If NuméroPièce1 > NuméroPièce2 And NuméroPièce1 > NuméroPièce3 And NuméroPièce1 > NuméroPièce4 And NuméroPièce1 > NuméroPièce5 Then NuméroPièce1 = 0; GoTo SUITE4
+							If NuméroPièce2 > NuméroPièce1 And NuméroPièce2 > NuméroPièce3 And NuméroPièce2 > NuméroPièce4 And NuméroPièce2 > NuméroPièce5 Then NuméroPièce2 = 0; GoTo SUITE4
+							If NuméroPièce3 > NuméroPièce1 And NuméroPièce3 > NuméroPièce2 And NuméroPièce3 > NuméroPièce4 And NuméroPièce3 > NuméroPièce5 Then NuméroPièce3 = 0; GoTo SUITE4
+							If NuméroPièce4 > NuméroPièce1 And NuméroPièce4 > NuméroPièce2 And NuméroPièce4 > NuméroPièce3 And NuméroPièce4 > NuméroPièce5 Then NuméroPièce4 = 0; GoTo SUITE4
+							If NuméroPièce5 > NuméroPièce1 And NuméroPièce5 > NuméroPièce2 And NuméroPièce5 > NuméroPièce3 And NuméroPièce5 > NuméroPièce4 Then NuméroPièce5 = 0
+SUITE4:
+							Print "NuméroPièce1=", NuméroPièce1; Print "NuméroPièce2=", NuméroPièce2; Print "NuméroPièce3=", NuméroPièce3; Print "NuméroPièce4=", NuméroPièce4; Print "NuméroPièce5=", NuméroPièce5
+							i = (IndexP1_T1 * 1000) + NumPieceMax
+							GoTo DEBUT
+					EndIf
+			EndIf
+			Print "		-> Venturi Scara1 T1 détecté en reculant"
+			GoTo AUTORISER_SUITE
+	EndIf
+	SpeedS 10
+	Move AmontScara1_T1 +TLZ(25) ! D0; On Soufflage_1 !
+	SpeedS 400
+	Move AmontScara1_T1; Off Soufflage_1
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''Perte de l'info de venturi du Scara1 T1 après avoir réculé le 6axes''''''''''''''
+	If Sw(2) = 0 Then
+		Wait 2
+		If Sw(2) = 0 Then Print "	-> Erreur : Perte de l'info de venturi du Scara1 après le recule du 6axes"; GoTo RECUP_PIECE;
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	Off Soufflage_1; Off Venturi_1
+AUTORISER_SUITE:
+
+CodeProgramme = 105; Print "code programme =", CodeProgramme
+	Print " ________________"
+	Print "|FIN DU PROGRAMME|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+Function TrsfScara1T1
+
+'Début CodeProgramme = 106
+CodeProgramme = 0
+
+	If Motor = Off Then Motor On
+	Power High
+	Speed 80; Accel 80, 30
+	SpeedS 400; AccelS 500, 500
+	
+	Tool 1
+	If InsideBox(BOX_AMONTSCARA1_T2) = False Then Go Home_T1 CP;
+	Go AmontScara1_T1 ! D0; On Venturi_1 !
+	Wait Sw(5) = 1, 60 'Ne fais pas l'avance tant que le Scara 1 n'est pas en place
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''''''Pas de présence du Scara1 au moment du transfert'''''''''''''''''''''''
+	If TW Then CodeProgramme = 621; Print "	-> Erreur critique : Le Scara 1 ne s'est pas présenté au 6axes pour le transfert de pièce"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	Move AmontScara1_T1 +TLZ(30)
+	
+	Print "Attente de l'information de venturi du Scara1"
+	Wait Sw(2) = 1, 3
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''''''Cas où le Scara1 n'arrive pas à aspirer la pièce'''''''''''''''''''''''
+	If TW Then
+		Print " -> Erreur : le Scara1 n'arrive pas à aspirer la pièce -> Recule du tool"
+		Move AmontScara1_T1 ! D0; On Soufflage_1 !; Off Soufflage_1; Off Venturi_1
+		Wait Sw(2) = 1, 3
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		'''''''''''''''''''''''''Pas de venturi T1 Scara1 même après le recule'''''''''''''''''''''''''
+		If TW Then CodeProgramme = 620; Print "		-> Erreur critique : Echec du tout premier transfert 6axes -> Scara1"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Print "	-> Venturi du T1 Scara1 détecté après avoir reculé"
+		GoTo AUTORISER_SUITE
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	SpeedS 10
+	Move AmontScara1_T1 +TLZ(25) ! D0; On Soufflage_1 !
+	SpeedS 400
+	Move AmontScara1_T1; Off Soufflage_1; Off Venturi_1
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''Perte de l'info de venturi du Scara1 T1 après avoir réculé le 6axes''''''''''''''
+	If Sw(2) = 0 Then
+		Wait 2
+		If Sw(2) = 0 Then CodeProgramme = 620; Print "		-> Erreur critique : Perte de l'info de venturi du Scara1 après le recule du 6axes ";  Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+AUTORISER_SUITE:
+	
+CodeProgramme = 106; Print "code programme =", CodeProgramme
+	Print " ________________"
+	Print "|FIN DU PROGRAMME|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+Function Home_TrsfScara2T2
+
+'Début CodeProgramme = 107
+CodeProgramme = 0
+
+	If Motor = Off Then Motor On
+	Power High
+	Speed 60; Accel 60, 60
+	SpeedS 400; AccelS 500, 500
+	
+	Off Soufflage_1; Off Soufflage_2
+	Tool 1
+	Go PassageVersS2_T1 CP
+	Tool 2
+	Go AmontScara2_T2
+	
+	Wait Sw(6) = 1, 60 'Attente Scara2 en place
+	If TW Then CodeProgramme = 540; Print "	-> Erreur critique : Le Scara 2 ne s'est pas présenté au 6axes pour le transfert de pièce"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+
+	Move AmontScara2_T2 +TLZ(30)
+	
+	Wait Sw(3) = 1, 3 'Attente info venturi Scara2
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''''''Cas où le Scara2 n'arrive pas à aspirer la pièce'''''''''''''''''''''''
+	If TW Then
+		Move AmontScara2_T2 ! D0; Print " -> Erreur : le Scara2 n'arrive pas à aspirer la pièce -> Récupération de la pièce dans le Scara2"; On Soufflage_2 !; Off Soufflage_2; Off Venturi_2 'Alors on se recule
+		Wait Sw(3) = 1, 3 'Attente info venturi Scara2
+		If TW Then
+RECUP_PIECE:
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					'''''''''''''Capteur optique T2 shunté''''''''''''
+					If InhibOptiqueT2 = True Then 'On ne peut pas se servir du capteur pour savoir si la pièce est toujours présente dans le Scara2
+						Move AmontScara2_T2 +TLZ(30) ! D0; On Venturi_2 !
+						Wait Sw(10) = 1, 5 'Attente info venturi 6axes T1
+						If TW Then
+							Move AmontScara2_T2; Off Venturi_2
+							GoTo PIECE_TOMBEE
+						EndIf
+						GoTo PIECE_RECUPEREE
+					EndIf
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+				
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''Capteur optique utilisé'''''''''''''	
+					Move AmontScara2_T2 +TLZ(28); Wait 0.5 'On s'avance avec le T2 du 6axes pour voir s'il y a un insert dans le T1 du Scara2		
+					If Sw(1) = True Then 'S'il y en a une, on retire la pièce du Scara Optomill par la force du 6axes						
+							Move AmontScara2_T2 +TLZ(30) ! D0; On Venturi_2 !
+							Wait Sw(11) = 1, 5 'Attente info venturi 6axes T2
+							If TW Then
+								Move AmontScara2_T2; Off Venturi_1; Print "		-> Erreur critique : Impossible de récupérer la pièce restée dans le Scara2 après l'échec de transfert"
+								CodeProgramme = 541; Print "code programme =", CodeProgramme; Wait 5; Exit Function
+							EndIf
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''''''''''''''''''''''''''''''''''''''
+PIECE_RECUPEREE:
+							Print "Pièce récupérée -> Appel du programme de dépose dans le bac froid :"
+							Move AmontScara2_T2
+							CodeProgramme = 0
+							Call Z_SousProg_DepPlateauBac
+							If CodeProgramme > 0 Then Exit Function
+							Speed 60; Accel 60, 60
+							SpeedS 400; AccelS 500, 500
+							CodeProgramme = 320; Print "code programme =", CodeProgramme; Wait 0.5
+					Else
+PIECE_TOMBEE:
+							Print "		-> Pièce tombée" 'On vire la pièce de la liste de pièce à déposer
+							If NuméroPièce1 > 0 And ((NuméroPièce2 = 0 Or NuméroPièce1 < NuméroPièce2) And (NuméroPièce3 = 0 Or NuméroPièce1 < NuméroPièce3) And (NuméroPièce4 = 0 Or NuméroPièce1 < NuméroPièce4) And (NuméroPièce5 = 0 Or NuméroPièce1 < NuméroPièce5)) Then NuméroPièce1 = 0; GoTo SUITE
+							If NuméroPièce2 > 0 And ((NuméroPièce1 = 0 Or NuméroPièce2 < NuméroPièce1) And (NuméroPièce3 = 0 Or NuméroPièce2 < NuméroPièce3) And (NuméroPièce4 = 0 Or NuméroPièce2 < NuméroPièce4) And (NuméroPièce5 = 0 Or NuméroPièce2 < NuméroPièce5)) Then NuméroPièce2 = 0; GoTo SUITE
+							If NuméroPièce3 > 0 And ((NuméroPièce1 = 0 Or NuméroPièce3 < NuméroPièce1) And (NuméroPièce2 = 0 Or NuméroPièce3 < NuméroPièce2) And (NuméroPièce4 = 0 Or NuméroPièce3 < NuméroPièce4) And (NuméroPièce5 = 0 Or NuméroPièce3 < NuméroPièce5)) Then NuméroPièce3 = 0; GoTo SUITE
+							If NuméroPièce4 > 0 And ((NuméroPièce1 = 0 Or NuméroPièce4 < NuméroPièce1) And (NuméroPièce2 = 0 Or NuméroPièce4 < NuméroPièce2) And (NuméroPièce3 = 0 Or NuméroPièce4 < NuméroPièce3) And (NuméroPièce5 = 0 Or NuméroPièce4 < NuméroPièce5)) Then NuméroPièce4 = 0; GoTo SUITE
+							If NuméroPièce5 > 0 And ((NuméroPièce1 = 0 Or NuméroPièce5 < NuméroPièce1) And (NuméroPièce2 = 0 Or NuméroPièce5 < NuméroPièce2) And (NuméroPièce3 = 0 Or NuméroPièce5 < NuméroPièce3) And (NuméroPièce4 = 0 Or NuméroPièce5 < NuméroPièce4)) Then NuméroPièce5 = 0
+SUITE:
+							Tool 1
+							Go Home_T1 ! D0; On Venturi_1 !
+							CodeProgramme = 321; Print "code programme =", CodeProgramme; Wait 0.5
+					EndIf
+					On AvertissementAPI; Wait 0.5; 'Off AvertissementAPI  On ne reset ce bit que quand on est sûr que le 6axes a bien redéposé sa pièce FAV
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					''''''''''''''''''''''''Remise en place de la pièce FAV dans le plateau''''''''''''''''''''''''
+					If InhibOptiqueT1 = True Then On Venturi_1; Wait 3
+					If (InhibOptiqueT1 = False And Sw(8) = 1) Or (InhibOptiqueT1 = True And Sw(10) = 1) Then 'Si le 6axes venait de récuperer l'insert FAV					
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							'''''Equation pour replacer la pièce FAV dans le T1 à place du plateau FAV d'où elle vient'''''
+							RedeposePieceFAV = True 'Indiquer au sous programme de dépose FAV de ne pas recalculer 'IndexVideP1_T1'
+							If NuméroPieceVide1 > NuméroPieceVide2 And NuméroPieceVide1 > NuméroPieceVide3 Then IndexVideP1_T1 = NuméroPieceVide1; NuméroPieceVide1 = 0; GoTo SUITE2
+							If NuméroPieceVide2 > NuméroPieceVide1 And NuméroPieceVide2 > NuméroPieceVide3 Then IndexVideP1_T1 = NuméroPieceVide2; NuméroPieceVide2 = 0; GoTo SUITE2
+							If NuméroPieceVide3 > NuméroPieceVide1 And NuméroPieceVide3 > NuméroPieceVide2 Then IndexVideP1_T1 = NuméroPieceVide3; NuméroPieceVide3 = 0;
+SUITE2:
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+							CodeProgramme = 0
+							Call Z_SousProg_DepPlateauFAV
+							If CodeProgramme > 0 Then Exit Function
+							RedeposePieceFAV = False
+					EndIf
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					Off AvertissementAPI
+					CompteurEchecTrsfVersScara2 = CompteurEchecTrsfVersScara2 + 1
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					'''''''''''''''''''''''Echec du transfert avec le Scara2 3 fois de suite'''''''''''''''''''''''
+					If CompteurEchecTrsfVersScara2 = 3 Then CodeProgramme = 542; Print "	-> Erreur critique : Problème de transfert 3 fois de suite avec le Scara2"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+					Exit Function
+			EndIf
+			Print "		-> Venturi détecté en Scara2 T1 après avoir reculé le 6axes"
+			GoTo AUTORISER_SUITE
+	EndIf
+	Print "-> Venturi Scara2 T1 Détecté -> soufflage 6axes";
+	SpeedS 10
+	Move AmontScara2_T2 +TLZ(20) ! D0; On Soufflage_2 !
+	SpeedS 400
+	Move AmontScara2_T2; Off Soufflage_2; Off Venturi_2
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''Perte de l'info de venturi du Scara2 T1 après avoir réculé le 6axes''''''''''''''
+	If Sw(2) = 0 Then
+		Wait 2
+		If Sw(2) = 0 Then Print "	-> Erreur : Perte de l'info de venturi du Scara2 après le recule du 6axes"; GoTo RECUP_PIECE;
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+AUTORISER_SUITE:
+
+CodeProgramme = 107; Print "code programme =", CodeProgramme
+	CompteurEchecTrsfVersScara2 = 0
+	
+	Print " ________________"
+	Print "|FIN DU PROGRAMME|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+Function Home_DepPlateauBac_Home
+
+'Début CodeProgramme = 108
+CodeProgramme = 0
+
+	Call Z_SousProg_DepPlateauBac
+	If CodeProgramme > 0 Then Exit Function;
+	
+CodeProgramme = 108; Print "code programme =", CodeProgramme
+	Print " ________________"
+	Print "|FIN DU PROGRAMME|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+Fend
+Function PrisePieceDcyT1_TrsfScara1T1
+	
+'Début CodeProgramme = 109
+CodeProgramme = 0
+
+    If Motor = Off Then Motor On
+	Power High
+	Speed 80; Accel 80, 80
+	SpeedS 400; AccelS 500, 500
+    Integer EssaisDeposePiecesDCY
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'Prise de la pièce DCY pour Optoform n°1
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	Print " ___________________________________________"
+	Print "|Prise de la pièce DCY n°1 pour Optoform FAR|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+	Tool 1
+	Go Home_T1 CP
+	Go PassageVersS2_T1 CP
+	Go PieceDcy1_T1 CP
+	Power Low
+	Move PieceDcy1_T1 +TLZ(30) ! D0; On Venturi_1 !
+	Wait Sw(10) = 1, 5 'Attente venturi du T1
+	Move PieceDcy1_T1 'Remontée du T1
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''Impossible de récupérer la pièce DCY FAR pour le Scara1''''''''''''''''''''
+	If Sw(10) = 0 Then
+		Print "	-> Erreur : Impossible de récupérer la pièce DCY FAR pour le Scara1 -> Remise en place de la pièce DCY FAR et passage à la suite"
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		''''''''''''''''''''''''''''''Remise en place de la pièce DCY FAR''''''''''''''''''''''''''''''
+REDEPOSE:
+		EssaisDeposePiecesDCY = 3
+		If InhibOptiqueT1 = True Then Wait 2
+		Do While Sw(10) = True Or (InhibOptiqueT1 = False And Sw(0) = True)
+			Move PieceDcy1_T1 +TLZ(25); On Soufflage_1; Off Venturi_1; Move Here +Y(1.5); Move Here -Y(3); Move Here +Y(1.5); Move Here +X(1.5); Move Here -X(3); Move Here +X(1.5); Move Here +Z(25)
+			If InhibOptiqueT1 = True Then Off Soufflage_1; On Venturi_1; Wait 2
+			If EssaisDeposePiecesDCY = 0 And (Sw(10) = True Or (InhibOptiqueT1 = False And Sw(0) = True)) Then CodeProgramme = 660; Print "		-> Erreur critique : Impossible de remettre en place la pièce DCY FAR, après un premier échec de préhension"; Print "code programme =", CodeProgramme; Wait 5; Exit Function
+			EssaisDeposePiecesDCY = EssaisDeposePiecesDCY - 1
+		Loop
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		If CodeProgramme = 0 Then CodeProgramme = 380; Print "code programme =", CodeProgramme;
+	Else
+		Print "	-> Pièce DCY FAR Récupéré -> Transfert au Scara1"
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	
+	Power High
+	Go PassageVersS2_T1 CP
+	Go Home_T1
+	If CodeProgramme > 0 Then
+		Print " ________________"
+		Print "|FIN DU PROGRAMME|"
+		Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+		Exit Function
+	EndIf
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'Transfert 6axes -> Scara 1
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	Print " __________________________"
+	Print "|Transfert 6axes -> Scara 1|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+	Go AmontScara1_T1
+	Wait Sw(5) = 1, 60 'Ne fais pas l'avance tant que le Scara 1 n'est pas en place
+	If TW Then CodeProgramme = 621; Print "	-> Erreur critique : Le Scara 1 ne s'est pas présenté au 6axes pour le transfert de pièce"; Print "code programme =", CodeProgramme; Wait 5; Exit Function;
+
+	Move AmontScara1_T1 +TLZ(30) 'Avance dans le tool 1 du Scara1
+	Wait Sw(2) = 1, 3 'Attente info venturi Scara1	
+	SpeedS 10
+	Move AmontScara1_T1 +TLZ(25) ! D0; On Soufflage_1 !
+	SpeedS 400
+	Move AmontScara1_T1; Off Soufflage_1; Off Venturi_1
+	Wait Sw(2) = 1, 3
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	''''''''''''''''''''''''Cas où le Scara1 n'arrive pas à aspirer la pièce'''''''''''''''''''''''
+	If TW Then
+		Go Home_T1
+		CodeProgramme = 363; Print "code programme =", CodeProgramme; Wait 3 'attente que l'API récupère bien le CodeProg353
+		If InhibOptiqueT1 = True Then On Venturi_1; Wait 3
+		If Sw(10) = True Or (InhibOptiqueT1 = False And Sw(0) = True) Then
+			Print "	-> Erreur : Le Scara1 n'a pas réussi à aspirer la piece DCY FAR -> Remise en place de la pièce DCY FAR et passage à la suite"
+			Go PassageVersS2_T1 CP
+			Go PieceDcy1_T1 CP
+			GoTo REDEPOSE
+		Else
+			Print "		-> Erreur : Le Scara1 n'a pas réussi à aspirer la piece DCY FAR -> On ignore ce transfert et on passe à la suite"
+		EndIf
+	EndIf
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+CodeProgramme = 109; Print "code programme =", CodeProgramme
+	Print " ________________"
+	Print "|FIN DU PROGRAMME|"
+	Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
