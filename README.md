@@ -40,4 +40,4 @@ Grafcet method (EdiTSAB software)
 
 Electrical cabinet diagram (Winrelais software)
 -----------------------------------------------
-  - https://user-images.githubusercontent.com/58557043/70247610-ec3b1c80-1779-11ea-98c5-cefd4d651f94.png
+  - https://user-images.gifthubusercontent.com/58557043/70247610-ec3b1c80-1779-11ea-98c5-cefd4d651f94.png
