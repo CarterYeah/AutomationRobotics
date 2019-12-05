@@ -13,33 +13,33 @@ Function Z_ServerPC_MsgLoop()
 	Print "Lancement tache serveur com PC"
 	
 	'Connexion au serveur
-	CloseNet #PC_COM_PortNum									'Fermeture de la connexion avec l'automate
+	CloseNet #PC_COM_PortNum					'Fermeture de la connexion avec l'automate
 	SetNet #PC_COM_PortNum, "100.0.20.32", 5500, CR, NONE, 0	'On définit la connexion "#PC_COM_PortNum" en indiquant l'adresse IP de l'API, son port, et sa terminaison
-	OnErr GoTo testPort											'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
+	OnErr GoTo testPort						'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
 		
 ouverturePort:
-	OpenNet #PC_COM_PortNum As Server 							'Commande d'ouverture du port de co, avec l'API étant server (maître)
+	OpenNet #PC_COM_PortNum As Server 				'Commande d'ouverture du port de co, avec l'API étant server (maître)
 		
 testPort:
-	check = ChkNet(PC_COM_PortNum)								'On check la connexion avec l'API en stockant son état dans l'integer "check"
-	Print "check 6AXES1_COM", PC_COM_PortNum, check				'On print la com 6axes<=>API en indiquant le n° de la co, et son état "check"
+	check = ChkNet(PC_COM_PortNum)					'On check la connexion avec l'API en stockant son état dans l'integer "check"
+	Print "check 6AXES1_COM", PC_COM_PortNum, check			'On print la com 6axes<=>API en indiquant le n° de la co, et son état "check"
 
-	If check = -1 Then GoTo connexion 							'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
-	If check = -2 Then GoTo connexion 							'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
-	If check = -3 Then GoTo ouverturePort 						'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
+	If check = -1 Then GoTo connexion 				'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
+	If check = -2 Then GoTo connexion 				'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
+	If check = -3 Then GoTo ouverturePort 				'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
 
 connexion:
-	WaitNet #PC_COM_PortNum, 0.5								'Attente de connexion avec l'API (pendant 0.5s)
+	WaitNet #PC_COM_PortNum, 0.5					'Attente de connexion avec l'API (pendant 0.5s)
 	Print "Connexion SERVER_PC/PLC", PC_COM_PortNum, check		'On print la com 6axes<=>API en indiquant le n° de la co, et son état "check"
 		
 ecoute:
-	MsgIn$ = ""													'Remise à zéro du string "MsgIn$"
-	check = ChkNet(PC_COM_PortNum)								'On check la connexion avec l'API en stockant son état dans l'integer "check"
-	If check = -1 Then GoTo connexion							'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
-	If check = -2 Then GoTo connexion							'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
-	If check = -3 Then GoTo ouverturePort						'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
+	MsgIn$ = ""							'Remise à zéro du string "MsgIn$"
+	check = ChkNet(PC_COM_PortNum)					'On check la connexion avec l'API en stockant son état dans l'integer "check"
+	If check = -1 Then GoTo connexion				'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
+	If check = -2 Then GoTo connexion				'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
+	If check = -3 Then GoTo ouverturePort				'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
 		
-	Input #PC_COM_PortNum, MsgIn$								'On attend un message de l'API. Et s'il y en a un, on le stock dans la variable string "MsgIn$"
+	Input #PC_COM_PortNum, MsgIn$					'On attend un message de l'API. Et s'il y en a un, on le stock dans la variable string "MsgIn$"
 	
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''			
 ''''''''''''''''Pour débugage, n'intervient pas dans le cycle''''''''''''''''''
@@ -52,13 +52,13 @@ ecoute:
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
 
-	OnErr GoTo 0												'On réinitialise le traitement des erreurs
-	MsgOut$ = Z_ServerPC_TraiterMessage$(MsgIn$)					'On fait appelle à la fonction "Z_ServerPC_TraiterMessage$", avec "MsgIn$" en variable. 
-																'On passe à la SUITE seulement quand la fonction est finit
-																'La tram à envoyer est ainsi stocké dans "MsgOut$"
+	OnErr GoTo 0							'On réinitialise le traitement des erreurs
+	MsgOut$ = Z_ServerPC_TraiterMessage$(MsgIn$)			'On fait appelle à la fonction "Z_ServerPC_TraiterMessage$", avec "MsgIn$" en variable. 
+									'On passe à la SUITE seulement quand la fonction est finit
+									'La tram à envoyer est ainsi stocké dans "MsgOut$"
 																
-	OnErr GoTo testPort											'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
-	Print #PC_COM_PortNum, MsgOut$								'Envoi de la tram "MsgOut$" (déterminé juste avant) vers l'automate.
+	OnErr GoTo testPort						'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
+	Print #PC_COM_PortNum, MsgOut$					'Envoi de la tram "MsgOut$" (déterminé juste avant) vers l'automate.
 	
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''			
 ''''''''''''''''Pour débugage, n'intervient pas dans le cycle''''''''''''''''''		
@@ -70,11 +70,11 @@ ecoute:
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
 
-	GoTo ecoute													'Enfin, on retourne au label "ecoute"
+	GoTo ecoute							'Enfin, on retourne au label "ecoute"
 
 Exit Function
-
 Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
 Function Z_ServerPC_TraiterMessage$(ByVal Data$ As String) As String 'Avec "Data$"="MsgIn$" définit ci-dessus
 	
 	''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -99,8 +99,8 @@ Function Z_ServerPC_TraiterMessage$(ByVal Data$ As String) As String 'Avec "Data
 		
 			MissionCode$ = Left$(Data$, posSepar - 1)	'Auquel cas, le nom du mouvement est toute la partie gauche avant le ";". Donc: "Mouvement"
 			Z_ServerPC_TraiterMessage$ = Z_ServerPC_ExecMission_Data$(MissionCode$, Right$(Data$, Len(data$) - posSepar))	'Appel de la fonction "ServerPC_ExecMission_Datas$"
-																														'avec 1ère variable string "MissionCode$". Donc "Mouvement"
-																														'et 2ème variable string: la partie droite après le ";". Donc :"15"
+																							'avec 1ère variable string "MissionCode$". Donc "Mouvement"
+																							'et 2ème variable string: la partie droite après le ";". Donc :"15"
 	
 		Else					 'Si on trouve le "/" cela signifie que le mouvement contient 2 variables. Par exemple: "Mouvement;15/65"
 		
@@ -108,13 +108,14 @@ Function Z_ServerPC_TraiterMessage$(ByVal Data$ As String) As String 'Avec "Data
 			Data1$ = Right$(Data$, Len(data$) - posSepar)	'Et on isole la partie à droite après le ";". Donc: Data1$ = "15/65"
 			posSlash = InStr(Data1$, "/")					'On détermine la position du "/" pour ensuite en déterminer la première et la deuxième variable.
 			Z_ServerPC_TraiterMessage$ = Z_ServerPC_ExecMission_2xData$(MissionCode$, Left$(Data1$, posSlash - 1), Right$(Data1$, Len(Data1$) - posSlash))	'Appel de la fonction "Z_ServerPC_ExecMission_2xData$"
-																																						'avec 1ère variable string "MissionCode$". Donc "Mouvement"
-																																						'2ème variable string: la partie gauche de "Data1$", avant le "/". Donc "15"
-																																						'3ème variable string: la partie droite de "Data1$", après le "/". Donc "65"
+																												'avec 1ère variable string "MissionCode$". Donc "Mouvement"
+																												'2ème variable string: la partie gauche de "Data1$", avant le "/". Donc "15"
+																												'3ème variable string: la partie droite de "Data1$", après le "/". Donc "65"
 		EndIf
 		
 	EndIf
 Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
 Function Z_ServerPC_ExecMission$(ByVal Code$ As String) As String
 'Avec "Code$" = "MissionCode$"
 
@@ -184,6 +185,7 @@ Function Z_ServerPC_ExecMission$(ByVal Code$ As String) As String
 	Z_ServerPC_ExecMission$ = "!" + Code$
 			
 Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
 Function Z_ServerPC_ExecMission_Data$(ByVal Code$ As String, ByVal Data$ As String) As String
 'Avec "Code$" = "MissionCode$" & "Data$" = Partie droite après le ";"
 
@@ -352,7 +354,6 @@ Function Z_ServerPC_ExecMission_Data$(ByVal Code$ As String, ByVal Data$ As Stri
 			EndIf
 		Exit Function
 
-
 		Default
 			Z_ServerPC_ExecMission_Data$ = "!" + Code$
 	Send
@@ -360,6 +361,7 @@ Function Z_ServerPC_ExecMission_Data$(ByVal Code$ As String, ByVal Data$ As Stri
 	'Z_ServerPC_ExecMission_Data$ = "!" + Code$
 	
 Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
 Function Z_ServerPC_ExecMission_2xData$(ByVal Code$ As String, ByVal Data2$ As String, ByVal Data3$ As String) As String
 'Avec "Code$"="MissionCode$" & "Data2$"=Partie guauche de "Data1$" & "Data3$"=Partie droite de "Data1$"
 
