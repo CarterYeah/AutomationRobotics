@@ -1,1 +1,418 @@
+'***********************************************************************************************************************
+'** GTRobotique Resource                                                                                                    *
+'**	File : ServeurPC.prg
+'***********************************************************************************************************************
+#include "SystemDefs.inc"
+#include "UserDefs.inc"
 
+Function Z_ServerPC_MsgLoop()
+	
+	String MsgIn$, MsgOut$
+	Integer check
+	
+	Print "Lancement tache serveur com PC"
+	
+	'Connexion au serveur
+	CloseNet #PC_COM_PortNum									'Fermeture de la connexion avec l'automate
+	SetNet #PC_COM_PortNum, "100.0.20.32", 5500, CR, NONE, 0	'On définit la connexion "#PC_COM_PortNum" en indiquant l'adresse IP de l'API, son port, et sa terminaison
+	OnErr GoTo testPort											'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
+		
+ouverturePort:
+	OpenNet #PC_COM_PortNum As Server 							'Commande d'ouverture du port de co, avec l'API étant server (maître)
+		
+testPort:
+	check = ChkNet(PC_COM_PortNum)								'On check la connexion avec l'API en stockant son état dans l'integer "check"
+	Print "check 6AXES1_COM", PC_COM_PortNum, check				'On print la com 6axes<=>API en indiquant le n° de la co, et son état "check"
+
+	If check = -1 Then GoTo connexion 							'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
+	If check = -2 Then GoTo connexion 							'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
+	If check = -3 Then GoTo ouverturePort 						'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
+
+connexion:
+	WaitNet #PC_COM_PortNum, 0.5								'Attente de connexion avec l'API (pendant 0.5s)
+	Print "Connexion SERVER_PC/PLC", PC_COM_PortNum, check		'On print la com 6axes<=>API en indiquant le n° de la co, et son état "check"
+		
+ecoute:
+	MsgIn$ = ""													'Remise à zéro du string "MsgIn$"
+	check = ChkNet(PC_COM_PortNum)								'On check la connexion avec l'API en stockant son état dans l'integer "check"
+	If check = -1 Then GoTo connexion							'Si check = -1, c'est que la co est ouverte mais pas connectée. On passe alors au label "connexion"
+	If check = -2 Then GoTo connexion							'Si check = -2, c'est que la co est utilisée par une autre tache. On passe alors au label "connexion"
+	If check = -3 Then GoTo ouverturePort						'Si check = -3, c'est que la co n'est même pas ouverte. On va alors au label "ouverturePort" pour régler ça
+		
+	Input #PC_COM_PortNum, MsgIn$								'On attend un message de l'API. Et s'il y en a un, on le stock dans la variable string "MsgIn$"
+	
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''			
+''''''''''''''''Pour débugage, n'intervient pas dans le cycle''''''''''''''''''
+	#ifdef DebugComSrv
+		'Print Tmr(TMR_COM), ";", "Com<-PC", MsgIn$
+		Print " _________________________________________________________________________"
+		Print "|" + Time$
+		Print "|Tram API->Robot  ", MsgIn$
+	#endif
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+
+	OnErr GoTo 0												'On réinitialise le traitement des erreurs
+	MsgOut$ = Z_ServerPC_TraiterMessage$(MsgIn$)					'On fait appelle à la fonction "Z_ServerPC_TraiterMessage$", avec "MsgIn$" en variable. 
+																'On passe à la SUITE seulement quand la fonction est finit
+																'La tram à envoyer est ainsi stocké dans "MsgOut$"
+																
+	OnErr GoTo testPort											'Permet d'indiquer le traitement d'une erreur. Ici, quand une erreur intervient, on va au label "testPort"
+	Print #PC_COM_PortNum, MsgOut$								'Envoi de la tram "MsgOut$" (déterminé juste avant) vers l'automate.
+	
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''			
+''''''''''''''''Pour débugage, n'intervient pas dans le cycle''''''''''''''''''		
+	#ifdef DebugComSrv
+		'Print Tmr(TMR_COM), ";", "Com->PC", MsgOut$
+		Print "|Tram Robot->API  ", MsgOut$
+		Print " ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"
+	#endif
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''	
+
+	GoTo ecoute													'Enfin, on retourne au label "ecoute"
+
+Exit Function
+
+Fend
+Function Z_ServerPC_TraiterMessage$(ByVal Data$ As String) As String 'Avec "Data$"="MsgIn$" définit ci-dessus
+	
+	''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	'Le robot reçoit une tram du type "Mouvement" OU "Mouvement;15" OU "Mouvement;15/65"
+	''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	
+	Integer posSepar, posSlash
+	String MissionCode$, Data1$
+	
+    posSepar = InStr(Data$, ";")	'Stock le n° de la position du caractère ";" dans la tram envoyé par l'automate au robot
+	posSlash = InStr(Data$, "/")	'Stock le n° de la position du caractère "/" dans la tram envoyé par l'automate au robot
+									'Si la valeur est -1, c'est que le caractère recherché n'est pas trouvable		
+		
+	If posSepar = -1 Then		'Si pas de symbole ";", cela signifie que le mouvement ne nécessite pas de variable
+	
+		MissionCode$ = Data$		'Auquel cas, le nom du mouvement est simplement TOUTE la tram "Data$". Par exemple: "Mouvement"
+		Z_ServerPC_TraiterMessage$ = Z_ServerPC_ExecMission$(MissionCode$) 'Appel de la fonction "Z_ServerPC_ExecMission$", avec "MissionCode$" en variable, déterminée ligne au-dessus		
+		
+	Else						'S'il y a le symbole ";", cela signifie que le mouvement est accompagné d'une ou plusieurs variable(s).
+	
+		If posSlash = -1 Then		'Si pas de symbole "/", cela signifie que le mouvement ne contient qu'une variable. Par exemple: "Mouvement;15"
+		
+			MissionCode$ = Left$(Data$, posSepar - 1)	'Auquel cas, le nom du mouvement est toute la partie gauche avant le ";". Donc: "Mouvement"
+			Z_ServerPC_TraiterMessage$ = Z_ServerPC_ExecMission_Data$(MissionCode$, Right$(Data$, Len(data$) - posSepar))	'Appel de la fonction "ServerPC_ExecMission_Datas$"
+																														'avec 1ère variable string "MissionCode$". Donc "Mouvement"
+																														'et 2ème variable string: la partie droite après le ";". Donc :"15"
+	
+		Else					 'Si on trouve le "/" cela signifie que le mouvement contient 2 variables. Par exemple: "Mouvement;15/65"
+		
+			MissionCode$ = Left$(Data$, posSepar - 1)		'Auquel cas, le nom du mouvement est toute la partie gauche avant le ";". Donc: "Mouvement"
+			Data1$ = Right$(Data$, Len(data$) - posSepar)	'Et on isole la partie à droite après le ";". Donc: Data1$ = "15/65"
+			posSlash = InStr(Data1$, "/")					'On détermine la position du "/" pour ensuite en déterminer la première et la deuxième variable.
+			Z_ServerPC_TraiterMessage$ = Z_ServerPC_ExecMission_2xData$(MissionCode$, Left$(Data1$, posSlash - 1), Right$(Data1$, Len(Data1$) - posSlash))	'Appel de la fonction "Z_ServerPC_ExecMission_2xData$"
+																																						'avec 1ère variable string "MissionCode$". Donc "Mouvement"
+																																						'2ème variable string: la partie gauche de "Data1$", avant le "/". Donc "15"
+																																						'3ème variable string: la partie droite de "Data1$", après le "/". Donc "65"
+		EndIf
+		
+	EndIf
+Fend
+Function Z_ServerPC_ExecMission$(ByVal Code$ As String) As String
+'Avec "Code$" = "MissionCode$"
+
+	Z_ServerPC_ExecMission$ = Code$ 'On définit "Z_ServerPC_ExecMission$" comme prenant la valeur "Code$"
+	
+	Select Code$ 'On regarde si la valeur de "Code$" correspond à l'une de proposition ci dessous
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Case "Home_6axes"								'Par exemple, si c'est "Home_6axes" qui est choisit
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then		'Si le robot n'est pas en train d'executer un autre mouvement,
+				Xqt XQT_TASK_MVT_ROBOT, Home_6axes			'alors on execute le mouvement Home_6axes
+				Z_ServerPC_ExecMission$ = Code$				'et on définit "Z_ServerPC_ExecMission$" comme prenant la valeur "Code$"
+			Else										'Si le 6axes est occupé avec un autre mouvement
+				Z_ServerPC_ExecMission$ = "!" + Code$			'alors on définit "Z_ServerPC_ExecMission$" comme prenant la valeur "Code$" mais en mettant un "!" devant
+			EndIf
+			Exit Function
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+        Case "AmontScara1T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Xqt XQT_TASK_MVT_ROBOT, AmontScara1T2
+				Z_ServerPC_ExecMission$ = Code$
+			Else
+				Z_ServerPC_ExecMission$ = "!" + Code$
+			EndIf
+			Exit Function
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Case "AmontScara2T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Xqt XQT_TASK_MVT_ROBOT, AmontScara2T2
+				Z_ServerPC_ExecMission$ = Code$
+			Else
+				Z_ServerPC_ExecMission$ = "!" + Code$
+			EndIf
+			Exit Function
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Case "AmontScara2T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Xqt XQT_TASK_MVT_ROBOT, AmontScara2T2
+				Z_ServerPC_ExecMission$ = Code$
+			Else
+				Z_ServerPC_ExecMission$ = "!" + Code$
+			EndIf
+			Exit Function
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Case "TrsfScara1T1_Home_AmontScara3T1"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Xqt XQT_TASK_MVT_ROBOT, TrsfScara1T1_Home_AmontScara3T1
+				Z_ServerPC_ExecMission$ = Code$
+			Else
+				Z_ServerPC_ExecMission$ = "!" + Code$
+			EndIf
+			Exit Function
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+		Case "TrsfScara3T1"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+                Xqt XQT_TASK_MVT_ROBOT, TrsfScara3T1
+				Z_ServerPC_ExecMission$ = Code$
+			Else
+				Z_ServerPC_ExecMission$ = "!" + Code$
+			EndIf
+			Exit Function
+			
+		Default
+			Z_ServerPC_ExecMission$ = "!" + Code$		'Si aucune proposition ne correspond, on définit "Z_ServerPC_ExecMission$" comme prenant la valeur "Code$" mais en mettant un "!" devant
+	Send
+	
+	Z_ServerPC_ExecMission$ = "!" + Code$
+			
+Fend
+Function Z_ServerPC_ExecMission_Data$(ByVal Code$ As String, ByVal Data$ As String) As String
+'Avec "Code$" = "MissionCode$" & "Data$" = Partie droite après le ";"
+
+	Z_ServerPC_ExecMission_Data$ = Code$
+	
+	Select Code$
+		
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_DepPlateauBac_AmontScara3T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_DepPlateauBac_AmontScara3T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_DepPlateauFAV_PrisePieceDcyT1_AmontScara3T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_DepPlateauFAV_PrisePieceDcyT1_AmontScara3T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DechargRegl_TrsfColletScara3T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DechargRegl_TrsfColletScara3T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_DepPlateauFAV_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_DepPlateauFAV_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DepPieceDcy_CouleurFAV_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DepPieceDcy_CouleurFAV_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_TrsfScara2T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_TrsfScara2T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_DepPlateauBac_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_DepPlateauBac_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "PrisePieceDcyT1_TrsfScara1T1"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, PrisePieceDcyT1_TrsfScara1T1
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "RemisePiecesEnPlaceApresDefaut"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, RemisePiecesEnPlaceApresDefaut
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Rejet_6axes"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Rejet_6axes
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "ChargReglT1_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, ChargReglT1_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DechargChargRegl_DepPlateauBac_DepPlateauFAV_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DechargChargRegl_DepPlateauBac_DepPlateauFAV_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DechargRegl_DepPlateauBac_DepPlateauFAV_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DechargRegl_DepPlateauBac_DepPlateauFAV_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DepDesPiecesDcy_CouleurFAV_Home"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DepDesPiecesDcy_CouleurFAV_Home
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "DechargChargRegl_TrsfColletScara3T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, DechargChargRegl_TrsfColletScara3T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Home_DepPlateauFAV_AmontScara3T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data$)
+				Xqt XQT_TASK_MVT_ROBOT, Home_DepPlateauFAV_AmontScara3T2
+				Z_ServerPC_ExecMission_Data$ = Code$
+			Else
+				Z_ServerPC_ExecMission_Data$ = "!" + Code$
+			EndIf
+		Exit Function
+
+
+		Default
+			Z_ServerPC_ExecMission_Data$ = "!" + Code$
+	Send
+	
+	'Z_ServerPC_ExecMission_Data$ = "!" + Code$
+	
+Fend
+Function Z_ServerPC_ExecMission_2xData$(ByVal Code$ As String, ByVal Data2$ As String, ByVal Data3$ As String) As String
+'Avec "Code$"="MissionCode$" & "Data2$"=Partie guauche de "Data1$" & "Data3$"=Partie droite de "Data1$"
+
+	Z_ServerPC_ExecMission_2xData$ = Code$
+	
+	Select Code$
+		
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "PrisePieceBacT1_Home_AmontScara1T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data3$)
+				Xqt XQT_TASK_MVT_ROBOT, PrisePieceBacT1_Home_AmontScara1T2(Val(Data2$))
+			Else
+				Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "PrisePieceBacT1_Home_TrsfScara1T1"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data3$)
+				Xqt XQT_TASK_MVT_ROBOT, PrisePieceBacT1_Home_TrsfScara1T1(Val(Data2$))
+			Else
+				Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "PrisePieceFAVT1_AmontScara1T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data3$)
+				Xqt XQT_TASK_MVT_ROBOT, PrisePieceFAVT1_AmontScara1T2(Val(Data2$))
+			Else
+				Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "PrisePieceFAVT1_AmontScara2T2"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Call InhibitionEtCouleurFAV6axes(Data3$)
+				Xqt XQT_TASK_MVT_ROBOT, PrisePieceFAVT1_AmontScara2T2(Val(Data2$))
+			Else
+				Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+			EndIf
+		Exit Function
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''		
+		Case "Manuel_6axes"
+			If TaskDone(XQT_TASK_MVT_ROBOT) Then
+				Xqt XQT_TASK_MVT_ROBOT, Manuel_6axes(Val(Data2$), Val(Data3$))
+			Else
+				Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+			EndIf
+		Exit Function
+		
+	Default
+		Z_ServerPC_ExecMission_2xData$ = "!" + Code$
+	Send
+Fend
