@@ -1,0 +1,93 @@
+#include "SystemDefs.inc"
+#include "UserDefs.inc"
+
+Function Z_User_GestIO
+''''	
+''''Gestion des verrines, automatisme...
+''''
+	
+OnErr GoTo errorhandel
+	
+localstart:
+
+	Do
+		'Si en AU
+		If BTst(CtrlInfo(1), 8) = 1 Then
+			Wait 0.3
+			Print "Quit All AU"
+			Quit All
+		EndIf
+		
+		'Si en erreur
+		If BTst(CtrlInfo(1), 10) = 1 Or BTst(CtrlInfo(1), 11) = 1 Or SignalERR > 0 Then
+			'Verrine au rouge, message opérateur...
+		EndIf
+		
+		'Si portes ouvertes
+		If BTst(CtrlInfo(1), 9) = 1 Then
+			'Verrine orange....
+		EndIf
+
+		Wait 0.1
+		
+	Loop
+	
+	Exit Function
+
+errorhandel:
+	Print "Erreur:", Err
+	SignalERR = Err
+	GoTo localstart
+	
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+Function Z_User_ProdInit()
+'Initialisation des paramètres de production
+'Definition des tool, des box, plan ...
+	
+	'Charge le fichier point
+	LoadPoints "Points.pts"
+	
+	'Affectation des valeurs de Tool (Reperes outils)
+	TLSet 1, M_TOOL1
+	TLSet 2, M_TOOL2
+
+	'Parametres robot
+	'Range -1805881, 70481, -2685156, 2685156, -1811982, 0, -9961226, 9961226
+	Weight 0.5
+	'Inertia 0.001, 0
+
+	'Liste des box
+	Box BOX_REGLANTAGE, CX(ColletBas_T2) - 40, CX(ColletBas_T2) + 90, CY(ColletBas_T2) - 40, CY(ColletBas_T2) + 70, CZ(ColletBas_T2) - 1, CZ(ColletHaut_T1) + 1
+	Box BOX_AMONTSCARA1_T1, CX(AmontScara1_T1) - 30, CX(AmontScara1_T1) + 30, CY(AmontScara1_T1) - 30, CY(AmontScara1_T1) + 30, CZ(AmontScara1_T1) - 30, CZ(AmontScara1_T1) + 30
+	Box BOX_AMONTSCARA1_T2, CX(AmontScara1_T2) - 30, CX(AmontScara1_T2) + 30, CY(AmontScara1_T2) - 30, CY(AmontScara1_T2) + 30, CZ(AmontScara1_T2) - 30, CZ(AmontScara1_T2) + 30
+	Box BOX_AMONTSCARA2_T2, CX(AmontScara2_T2) - 30, CX(AmontScara2_T2) + 30, CY(AmontScara2_T2) - 30, CY(AmontScara2_T2) + 30, CZ(AmontScara2_T2) - 30, CZ(AmontScara2_T2) + 30
+	Box BOX_PIECEDCY1, CX(PieceDcy1_T2) - 40, CX(PieceDcy1_T2) + 40, CY(PieceDcy1_T2) - 40, CY(PieceDcy1_T2) + 40, CZ(PieceDcy1_T2) - 40, CZ(PieceDcy1_T2) + 40
+	Box BOX_PIECEDCY2, CX(PieceDcy2_T1) - 40, CX(PieceDcy2_T1) + 40, CY(PieceDcy2_T1) - 40, CY(PieceDcy2_T1) + 40, CZ(PieceDcy2_T1) - 40, CZ(PieceDcy2_T1) + 40
+	Box BOX_COLLETBAS_T2, CX(ColletBas_T2) - 10, CX(ColletBas_T2) + 10, CY(ColletBas_T2) - 10, CY(ColletBas_T2) + 10, CZ(ColletBas_T2) - 1, CZ(ColletBas_T2) + 31
+	Box BOX_COLLETBAS_T1, CX(ColletBas_T1) - 10, CX(ColletBas_T1) + 10, CY(ColletBas_T1) - 10, CY(ColletBas_T1) + 10, CZ(ColletBas_T1) - 1, CZ(ColletBas_T1) + 21
+	Box BOX_COLLETHAUT_T1, CX(ColletHaut_T1) - 10, CX(ColletHaut_T1) + 10, CY(ColletHaut_T1) - 10, CY(ColletHaut_T1) + 10, CZ(ColletHaut_T1) - 41, CZ(ColletHaut_T1) + 1
+	Box BOX_COLLETTRSF_T2, CX(DansColletTrf_T2) - 30, CX(DansColletTrf_T2) + 30, CY(DansColletTrf_T2) - 30, CY(DansColletTrf_T2) + 30, CZ(DansColletTrf_T2) - 30, CZ(DansColletTrf_T2) + 30
+	Box BOX_AMONTSCARA3_T1, CX(AmontScara3_T1) - 30, CX(AmontScara3_T1) + 30, CY(AmontScara3_T1) - 30, CY(AmontScara3_T1) + 30, CZ(AmontScara3_T1) - 30, CZ(AmontScara3_T1) + 30
+	Box BOX_AMONTSCARA3_T2, CX(AmontScara3_T2) - 30, CX(AmontScara3_T2) + 30, CY(AmontScara3_T2) - 30, CY(AmontScara3_T2) + 30, CZ(AmontScara3_T2) - 30, CZ(AmontScara3_T2) + 30
+
+
+	'palette
+	Pallet PAL_PRISE, PaletteBac1_T1, PaletteBac2_T1, PaletteBac3_T1, PaletteBac4_T1, 7, 7
+	Pallet PAL_DEPOSE, PaletteBac1_T2, PaletteBac2_T2, PaletteBac3_T2, 7, 7
+	Pallet PAL_PRISE2, PaletteBac5_T1, PaletteBac6_T1, PaletteBac7_T1, PaletteBac8_T1, 7, 7
+	Pallet PAL_DEPOSE2, PaletteBac4_T2, PaletteBac5_T2, PaletteBac6_T2, 7, 7
+	Pallet PIECEVIDE_PRISE, PaletteFAV1_T1, PaletteFAV2_T1, PaletteFAV3_T1, PaletteFAV4_T1, 7, 7
+	Pallet PIECEVIDE_PRISE2, PaletteFAV5_T1, PaletteFAV6_T1, PaletteFAV7_T1, PaletteFAV8_T1, 7, 7
+		
+	'Plan
+	Plane PLAN_DansZoneScara2EtReglantage, XY(300, 0, 0, 0, 90, 0)
+	Plane PLAN_BacFroidAuDessusPlateaux, XY(0, 0, -158, 0, 0, 0)
+	Plane PLAN_AvantZoneScara3, XY(-500, 0, 0, 0, 90, -45)
+	Plane PLAN_HautBacFroid, XY(0, 0, 50, 0, 0, 0)
+	Plane PLAN_HorsZoneScara3EtPlatoFAV, XY(-130, 0, 0, 0, 90, -45)
+	Plane PLAN_AuDessusPlateauFAV, XY(0, 0, 85, 0, 0, 0)
+	Plane PLAN_HauteurPlexiScara3, XY(0, 0, 345, 180, 0, 0)
+
+Fend
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
