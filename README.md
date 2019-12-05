@@ -37,6 +37,8 @@ Grafcet method (EdiTSAB software)
 ---------------------------------
   - https://user-images.githubusercontent.com/58557043/70247257-6028f500-1779-11ea-9767-5ba45a6b7a56.png
   
+  YEAAAAAAAAAAH
+  
 
 Electrical cabinet diagram (Winrelais software)
 -----------------------------------------------
